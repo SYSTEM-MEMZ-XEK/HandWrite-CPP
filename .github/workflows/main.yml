@@ -15,7 +15,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 安装必要的系统库（去除不存在的 libegl1-mesa）
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -41,7 +40,7 @@ jobs:
           host: 'linux'
           target: 'desktop'
           arch: 'gcc_64'
-          modules: 'qtbase qttools'
+          modules: 'qttools qtprintsupport'
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -67,11 +66,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 使用 vcpkg 安装 Qt6（包含 base 和 tools）
-      - name: Install Qt6 via vcpkg
-        run: |
-          vcpkg install qt6-base qt6-tools --triplet x64-windows
-          echo "CMAKE_PREFIX_PATH=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.0'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qttools qtprintsupport'
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -82,9 +84,7 @@ jobs:
       - name: Deploy with windeployqt
         run: |
           mkdir deploy
-          # 从 vcpkg 安装目录找到 windeployqt
-          $WINDEPLOYQT = "C:\vcpkg\installed\x64-windows\tools\qt6\windeployqt.exe"
-          & $WINDEPLOYQT --release --no-compiler-runtime --dir deploy build\Release\HandWrite.exe
+          windeployqt --release --no-compiler-runtime --dir deploy build\Release\HandWrite.exe
           copy build\Release\HandWrite.exe deploy\
 
       - name: Upload artifact
@@ -99,28 +99,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 使用 Homebrew 安装 Qt6
       - name: Install Qt6 via Homebrew
         run: |
           brew install qt@6
           echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> $GITHUB_ENV
 
+      - name: Debug - list files
+        run: |
+          pwd
+          ls -la
+
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -S .
 
       - name: Build
         run: cmake --build build --parallel 4
 
       - name: Deploy with macdeployqt
         run: |
-          # 从 Homebrew 安装目录找到 macdeployqt
-          MACDEPLOYQT=$(brew --prefix qt@6)/bin/macdeployqt
-          $MACDEPLOYQT build/HandWrite.app -verbose=2 -always-overwrite
+          macdeployqt build/HandWrite.app -verbose=2 -always-overwrite
           mkdir -p deploy
           cp -r build/HandWrite.app deploy/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HandWrite-macos-x64
+          name: HandWrite-macos-arm64
           path: deploy/
